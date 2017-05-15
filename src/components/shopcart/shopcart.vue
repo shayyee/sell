@@ -1,22 +1,252 @@
 <template>
-    <div class="shopcart">
-        <div class="content">
-            <div class="content-left">
-                <div class="logo-wrapper">
-                    <div class="logo">
-                        <span class="icon-shopping_cart"></span>
+    <div>
+        <div class="shopcart">
+            <div class="content" @click="toggleList">
+                <div class="content-left">
+                    <div class="logo-wrapper">
+                        <div class="logo" :class="{'highlight':totalCount>0}">
+                            <span class="icon-shopping_cart" :class="{'highlight':totalCount>0}"></span>
+                        </div>
+                        <div class="num" v-show="totalCount>0">{{totalCount}}</div>
+                    </div>
+                    <div class="price" :class="{'highlight':totalPrice>0}">￥{{totalPrice}}</div>
+                    <div class="desc">另需配送费￥{{deliveryPrice}}元</div>
+                </div>
+                <div class="content-right" @click.stop.prevent="pay"> <!--阻止事件冒泡-->
+                    <div class="pay" :class="payClass">
+                        {{payDesc}}
                     </div>
                 </div>
-                <div class="price"></div>
-                <div class="desc"></div>
             </div>
-            <div class="content-right"></div>
+            <!--小球动画-->
+            <div class="ball-container">
+                <div v-for="ball in balls">
+                    <transition name="drop" @before-enter="beforeDrop" @enter="dropping" @after-enter="afterDrop">
+                        <div class="ball" v-show="ball.show">
+                            <div class="inner inner-hook"></div>
+                        </div>
+                    </transition>
+                </div>
+            </div>
+            <transition name="fold">
+                <div class="shopcart-list" v-show="listShow">
+                    <div class="list-header">
+                        <h1 class="title">购物车</h1>
+                        <span class="empty" @click="empty">清空</span>
+                    </div>
+                    <div class="list-content" ref="listContent">
+                        <ul>
+                            <li class="food" v-for="food in selectFoods">
+                                <span class="name">{{food.name}}</span>
+                                <div class="price">
+                                    <span>￥{{food.price*food.count}}</span>
+                                </div>
+                                <div class="cartcontrol-wrapper">
+                                    <cartcontrol @add="addFood" :food="food"></cartcontrol>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </transition>
         </div>
+        <transition name="fade">
+            <div class="list-mask" @click="hideList" v-show="listShow"></div>
+        </transition>
     </div>
 </template>
 
-<script>
-    export default {}
+<script type="text/ecmascript-6">
+    import BScroll from 'better-scroll';
+    import cartcontrol from '../cartcontrol/cartcontrol.vue'
+    export default {
+        name: 'shopcart',
+        props: {
+            selectFoods: {
+                type: Array,
+                default(){
+                    return [
+                        {
+                            price: 10,
+                            count: 1
+                        }
+                    ];
+                }
+            },
+            deliveryPrice: {
+                type: Number,
+                default: 0
+            },
+            minPrice: {
+                type: Number,
+                default: 0
+            }
+        },
+        data(){
+            return {
+                balls: [//每个小球的状态
+                    {
+                        show: false
+                    },
+                    {
+                        show: false
+                    },
+                    {
+                        show: false
+                    },
+                    {
+                        show: false
+                    },
+                    {
+                        show: false
+                    },
+                ],
+                dropBalls: [],//已经下落的小球
+                fold: true, //折叠
+                scroll: '',
+            }
+        },
+        computed: {
+            totalPrice(){ //所选商品总价
+                let total = 0;
+                this.selectFoods.forEach((food) => {
+                    total += food.price * food.count;
+                });
+                return total;
+            },
+            totalCount(){  //购物车右上角的商品总数
+                let count = 0;
+                this.selectFoods.forEach((food) => {
+                    count += food.count;
+                });
+                return count
+            },
+            payDesc(){ //还差几元起送
+                if (this.totalPrice === 0) {
+                    return `￥${this.minPrice}元起送`;
+                } else if (this.totalPrice < this.minPrice) {
+                    let diff = this.minPrice - this.totalPrice;
+                    return `还差￥${diff}元起送`;
+                } else {
+                    return '去结算';
+                }
+            },
+            payClass(){ //还差几元起送 样式
+                if (this.totalPrice < this.minPrice) {
+                    return 'not-enough';
+                } else {
+                    return 'enough';
+                }
+            },
+            listShow(){  //依赖fold
+                //若购物车为空 折叠
+                if (!this.totalCount) {
+                    this.fold = true;
+                    return false;
+                }
+                let show = !this.fold;
+                if (show) {
+                    this.$nextTick(() => {
+                        if (!this.scroll) {
+                            this.scroll = new BScroll(this.$refs.listContent, {
+                                click: true
+                            });
+                        } else {
+                            this.scroll.refresh();
+                        }
+                    })
+                }
+                return show;
+            }
+        },
+        methods: {
+            addFood(target) {
+                let _this = this;
+                _this.drop(target);
+            },
+            drop(el) {
+                let _this = this;
+//                console.log(el);
+                for (let i = 0; i < _this.balls.length; i++) {
+                    let ball = _this.balls[i];
+                    if (!ball.show) {
+                        ball.show = true;
+                        ball.el = el;
+                        _this.dropBalls.push(ball);
+                        return;
+                    }
+                }
+            },
+            beforeDrop(el){
+                let _this = this;
+                let count = _this.balls.length;
+                while (count--) {
+                    let ball = _this.balls[count];
+                    if (ball.show) {
+                        let rect = ball.el.getBoundingClientRect();//获取小球的相对于视口的位移(小球高度)
+//                        console.log(rect);
+                        let x = rect.left - 32;
+                        let y = -(window.innerHeight - rect.top - 22);//负数,因为是从左上角往下的的方向
+                        el.style.display = ''; //清空display
+                        el.style.webkitTransform = `translate3d(0,${y}px,0)`;
+                        el.style.transform = `translate3d(0,${y}px,0)`;
+                        //处理内层动画
+                        let inner = el.getElementsByClassName('inner-hook')[0]; //使用inner-hook类来单纯被js操作
+                        inner.style.webkitTransform = `translate3d(${x}px,0,0)`;
+                        inner.style.transform = `translate3d(${x}px,0,0)`;
+                    }
+                }
+            },
+            dropping(el){
+                let _this = this;
+                /* eslint-disable no-unused-vars */
+                let rf = el.offsetHeight;//触发重绘html
+                _this.$nextTick(() => {
+                    el.style.webkitTransform = 'translate3d(0,0,0)';
+                    el.style.transform = 'translate3d(0,0,0)';
+                    //处理内层动画
+                    let inner = el.getElementsByClassName('inner-hook')[0]; //使用inner-hook类来单纯被js操作
+                    inner.style.webkitTransform = 'translate3d(0,0,0)';
+                    inner.style.transform = 'translate3d(0,0,0)';
+                })
+            },
+            afterDrop(el){
+                let _this = this;
+                let ball = _this.dropBalls.shift();//完成一次动画就删除一个dropBalls的小球
+                if (ball) {
+                    ball.show = false;
+                    el.style.display = 'none'; //隐藏小球
+                }
+            },
+            pay(){
+                let _this = this;
+                if(_this.totalPrice < _this.minPrice){
+                    return;
+                }
+                alert(`需要支付${_this.totalPrice}元`);
+            },
+            toggleList(){
+                let _this = this;
+                if (!_this.totalCount) {
+                    return;
+                }
+                _this.fold = !_this.fold;
+            },
+            empty(){
+                let _this = this;
+                _this.selectFoods.forEach((food) => {
+                    food.count = 0;
+                })
+            },
+            hideList(){
+                let _this = this;
+                _this.fold = true;
+            }
+        },
+        components: {
+            cartcontrol
+        }
+    }
 </script>
 
 <style lang="stylus" rel="stylesheet/stylus">
@@ -68,7 +298,7 @@
                         right: 0
                         width: 24px
                         height: 16px
-                        line-height: 16px
+                        line-height: 18px
                         text-align: center
                         border-radius: 16px
                         font-size: 9px

@@ -9,6 +9,7 @@
                         <span v-if="item.type > 0" class="icon" :class="classMap[item.type]">
                         </span>{{item.name}}
                     </span>
+                    <span class="num" v-show="counts[index]>0">{{counts[index]}}</span>
                 </li>
             </ul>
         </div>
@@ -31,57 +32,77 @@
                                 <div class="price">
                                     <span class="now">￥{{food.price}}</span><span class="old" v-if="food.oldPrice">￥{{food.oldPrice}}</span>
                                 </div>
+                                <div class="cartcontrol-wrapper">
+                                    <cartcontrol @add="addFood" :food="food"></cartcontrol>
+                                </div>
                             </div>
                         </li>
                     </ul>
                 </li>
             </ul>
         </div>
-        <shopcart></shopcart>
+        <shopcart ref="shopcart" :selectFoods="selectFoods" :delivery-price="seller.deliveryPrice" :min-price="seller.minPrice"></shopcart>
     </div>
 </template>
 
 <script type="text/ecmascript-6">
     import BScroll from 'better-scroll';
     import shopcart from '../shopcart/shopcart.vue'
+    import cartcontrol from '../cartcontrol/cartcontrol.vue'
     const OK = 1;
 
     export default {
-        props:{
-            seller:{
-                type:Object
+        props: {
+            seller: {
+                type: Object
             }
         },
         data(){
-          return{
-              goods:[],
-              menuScroll:'',//左侧栏菜单分类
-              foodScroll:'',//右侧菜品列表
-              listHeight:[],//每个区间的高度
-              scrollY:0, //
-          }
+            return {
+                goods: [],
+                menuScroll: '',//左侧栏菜单分类
+                foodScroll: '',//右侧菜品列表
+                listHeight: [],//每个区间的高度
+                scrollY: 0, //
+                counts:[],//每类菜品被选中的数目
+            }
         },
-        computed:{
-          currentIndex(){
-              if(this.scrollY>=0){
-                  for(let i = 0; i < this.listHeight.length; i++){
-                      let height1 = this.listHeight[i];
-                      let height2 = this.listHeight[i+1];
-                      if(!height2 || (this.scrollY >= height1 && this.scrollY < height2)){
-                          return i;
-                      }
-                  }
-                  return 0;
-              }
-          }
+        computed: {
+            currentIndex(){
+                if (this.scrollY >= 0) {
+                    for (let i = 0; i < this.listHeight.length; i++) {
+                        let height1 = this.listHeight[i];
+                        let height2 = this.listHeight[i + 1];
+                        if (!height2 || (this.scrollY >= height1 && this.scrollY < height2)) {
+                            return i;
+                        }
+                    }
+                    return 0;
+                }
+            },
+            selectFoods(){  //便利被选中的food
+                let foods = [];
+                this.counts = [];
+                this.goods.forEach((good) => {
+                    let num = 0;
+                    good.foods.forEach((food) => {
+                       if(food.count){
+                           foods.push(food);
+                           num += food.count;
+                       }
+                    });
+                    this.counts.push(num);
+                });
+                return foods;
+            },
         },
         created(){
 
             this.classMap = ['decrease', 'discount', 'special', 'invoice', 'guarantee'];
 
-            this.$http.get('/api/goods').then((response)=>{
+            this.$http.get('/api/goods').then((response)=> {
                 let resData = response.body;
-                if(resData.state === OK){
+                if (resData.state === OK) {
                     this.goods = resData.data;
                     console.log(this.goods);
                     this.$nextTick(function () { //DOM更新后在初始化获得DOM高度
@@ -91,18 +112,19 @@
                 }
             });
         },
-        methods:{
+        methods: {
             _initScroll(){
                 let _this = this;
-                _this.menuScroll = new BScroll(_this.$refs.menuWrapper,{
+                _this.menuScroll = new BScroll(_this.$refs.menuWrapper, {
                     click: true //是否派发click事件
                 });
-                _this.foodScroll = new BScroll(_this.$refs.foodWrapper,{
+                _this.foodScroll = new BScroll(_this.$refs.foodWrapper, {
                     //3除了实时派发scroll事件，在swipe的情况下仍然能实时派发scroll事件
-                    probeType:3
+                    probeType: 3,
+                    click: true //是否派发click事件
                 });
                 //拿到滚动的实时位置的Y值，用于与左侧对比
-                _this.foodScroll.on('scroll',(pos) => {
+                _this.foodScroll.on('scroll', (pos) => {
                     _this.scrollY = Math.abs(Math.round(pos.y));
                 })
             },
@@ -112,26 +134,41 @@
                 let foodList = _this.$refs.foodWrapper.getElementsByClassName('food-list-hook');
                 let height = 0;
                 _this.listHeight.push(height);
-                for(let i = 0; i < foodList.length; i++){
+                for (let i = 0; i < foodList.length; i++) {
                     let item = foodList[i];
                     height += item.clientHeight;
                     _this.listHeight.push(height);
                 }
             },
-            selectMenu(index,evt){
+            selectMenu(index, evt){
                 let _this = this;
-                if(!evt._constructed){//原生点击事件,防止两次触发click事件
+                if (!evt._constructed) {//原生点击事件,防止两次触发click事件
                     return;
                 }
                 //拿到每个区间
                 let foodList = _this.$refs.foodWrapper.getElementsByClassName('food-list-hook');
                 let el = foodList[index];
-                _this.foodScroll.scrollToElement(el,300);
+                _this.foodScroll.scrollToElement(el, 300);
 
-            }
+            },
+            addFood(target) {
+                var _this = this;
+                _this._drop(target);
+            },
+            _drop(target) {
+                var _this = this;
+                // 体验优化,异步执行下落动画
+                _this.$nextTick(() => {
+                    _this.$refs.shopcart.drop(target);
+                });
+            },
         },
-        components:{
-            shopcart
+        components: {
+            shopcart,
+            cartcontrol
+        },
+        events:{
+
         }
     }
 </script>
@@ -148,15 +185,16 @@
         width: 100%
         overflow: hidden
         .menu-wrapper
-            flex: 0 0 80px
+            flex: 0 0 85px
             background: #f3f5f7
-            width: 80px
+            width: 85px
             .menu-item
                 display: table
-                height: 54px
+                height: 56px
                 width: 56px
-                padding: 0 12px
+                padding: 0 16px
                 line-height: 14px
+                position: relative
                 &.current
                     position: relative
                     z-index: 10
@@ -189,6 +227,19 @@
                     vertical-align: middle
                     border-1px(rgba(7, 17, 27, 0.1))
                     font-size: 12px
+                .num
+                    position: absolute
+                    bottom: 35px
+                    right:5px
+                    width: 18px
+                    height: 14px
+                    line-height: 16px
+                    text-align: center
+                    border-radius: 10px
+                    font-size: 9px
+                    font-weight: 700
+                    color: #fff
+                    background: rgb(240, 20, 20)
         .foods-wrapper
             flex: 1
             .title

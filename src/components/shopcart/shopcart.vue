@@ -223,7 +223,7 @@
                 if(_this.totalPrice < _this.minPrice){
                     return;
                 }
-                alert(`需要支付${_this.totalPrice}元`);
+                alert(`需要支付${_this.totalPrice + _this.deliveryPrice}元`);
             },
             toggleList(){
                 let _this = this;

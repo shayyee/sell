@@ -34,7 +34,22 @@
                 <split></split>
                 <div class="rating">
                     <h1 class="title">商品评价</h1>
-                    <ratingselect></ratingselect>
+                    <ratingselect @select="selectRating" @toggle="toggleContent" :selectType="selectType" :onlyContent="onlyContent" :desc="desc" :ratings="food.ratings"></ratingselect>
+                    <div class="rating-wrapper">
+                        <ul v-if="food.ratings && food.ratings.length">
+                            <li v-if="needShow(rating.rateType,rating.text)" v-for="rating in food.ratings" class="rating-item">
+                                <div class="user">
+                                    <span class="name">{{rating.username}}</span>
+                                    <img class="avatar" width="18" height="18" :src="rating.avatar"/>
+                                </div>
+                                <div class="time">{{rating.rateTime|formatDate}}</div>
+                                <p class="text">
+                                    <span :class="{'icon-thumb_up':rating.rateType===0,'icon-thumb_down':rating.rateType===1}"></span>{{rating.text}}
+                                </p>
+                            </li>
+                        </ul>
+                        <div class="no-rating" v-show="!food.ratings || !food.ratings.length">暂无评价</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -44,9 +59,14 @@
 <script type="text/ecmascript-6">
     import BScroll from 'better-scroll';
     import Vue from  'vue'
+    import {formatDate} from '../../common/js/date';
     import cartcontrol from '../cartcontrol/cartcontrol.vue'
     import split from '../split/split.vue'
     import ratingselect from '../ratingselect/ratingselect.vue'
+
+    const POSITIVE = 0;
+    const NEGATIVE = 1;
+    const ALL = 2;
 
     export default {
         props: {
@@ -57,13 +77,22 @@
         },
         data() {
             return {
-                showFlag: false
+                showFlag: false,
+                selectType: ALL,
+                onlyContent: false,
+                desc:{
+                    all:'全部',
+                    positive:'推荐',
+                    negative:'吐槽'
+                }
             }
         },
         methods: {
             show() {
                 let _this = this;
                 _this.showFlag = true;
+                _this.selectType = ALL;
+                _this.onlyContent = false;
                 _this.$nextTick(() => {
                     if (!_this.scroll) {
                         _this.scroll = new BScroll(_this.$refs.food, {
@@ -93,6 +122,37 @@
                 let _this = this;
                 _this.$emit('add', target);
             },
+            selectRating(type) {
+                let _this = this;
+                _this.selectType = type;
+                _this.$nextTick(() => {
+                    _this.scroll.refresh();
+                });
+            },
+            toggleContent(){
+                let _this = this;
+                _this.onlyContent = !_this.onlyContent;
+                _this.$nextTick(() => {
+                    _this.scroll.refresh();
+                });
+            },
+            needShow(type, text) {
+                let _this = this;
+                if (_this.onlyContent && !text) {
+                    return false;
+                }
+                if (_this.selectType === ALL) {
+                    return true;
+                } else {
+                    return type === _this.selectType;
+                }
+            },
+        },
+        filters: {
+            formatDate(time) {
+                let date = new Date(time);
+                return formatDate(date, 'yyyy-MM-dd hh:mm:ss');
+            }
         },
         components: {
             cartcontrol,
@@ -146,7 +206,7 @@
             .title
                 line-height: 14px
                 margin-bottom: 8px
-                font-size: 14px
+                font-size: 16px
                 font-weight: 700
                 color: rgb(7, 17, 27)
             .detail
@@ -155,7 +215,7 @@
                 height: 10px
                 font-size: 0
                 .sell-count, .rating
-                    font-size: 10px
+                    font-size: 12px
                     color: rgb(147, 153, 159)
                 .sell-count
                     margin-right: 12px
@@ -180,11 +240,11 @@
                 bottom: 18px
                 z-index: 10
                 height: 24px
-                line-height: 24px
+                line-height: 26px
                 padding: 0 12px
                 box-sizing: border-box
                 border-radius: 12px
-                font-size: 10px
+                font-size: 14px
                 color: #fff
                 background: rgb(0, 160, 220)
                 opacity: 1
@@ -198,7 +258,7 @@
             .title
                 line-height: 14px
                 margin-bottom: 6px
-                font-size: 14px
+                font-size: 16px
                 color: rgb(7, 17, 27)
             .text
                 line-height: 24px
@@ -210,7 +270,7 @@
             .title
                 line-height: 14px
                 margin-left: 18px
-                font-size: 14px
+                font-size: 16px
                 color: rgb(7, 17, 27)
             .rating-wrapper
                 padding: 0 18px
@@ -228,23 +288,23 @@
                             display: inline-block
                             margin-right: 6px
                             vertical-align: top
-                            font-size: 10px
+                            font-size: 12px
                             color: rgb(147, 153, 159)
                         .avatar
                             border-radius: 50%
                     .time
                         margin-bottom: 6px
                         line-height: 12px
-                        font-size: 10px
+                        font-size: 12px
                         color: rgb(147, 153, 159)
                     .text
                         line-height: 16px
-                        font-size: 12px
+                        font-size: 14px
                         color: rgb(7, 17, 27)
                         .icon-thumb_up, .icon-thumb_down
                             margin-right: 4px
                             line-height: 16px
-                            font-size: 12px
+                            font-size: 14px
                         .icon-thumb_up
                             color: rgb(0, 160, 220)
                         .icon-thumb_down
